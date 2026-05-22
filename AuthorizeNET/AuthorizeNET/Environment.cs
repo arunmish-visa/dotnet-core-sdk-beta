@@ -26,12 +26,12 @@
 		public int HttpProxyPort { get; set; }
 		
 
-		private Environment(string baseUrl, string xmlBaseUrl, string cardPresentUrl)
-		{
-			BaseUrl = baseUrl;
-			XmlBaseUrl = xmlBaseUrl;
-			CardPresentUrl = cardPresentUrl;
-		}
+	public Environment(string baseUrl, string xmlBaseUrl, string cardPresentUrl)
+	{
+		BaseUrl = baseUrl;
+		XmlBaseUrl = xmlBaseUrl;
+		CardPresentUrl = cardPresentUrl;
+	}
 
 		/// <summary>
 		/// Gets the base url
@@ -61,22 +61,17 @@
 		}
 
 
-		/// <summary>
-		/// Create a custom environment with the specified base url
-		/// </summary>
-		/// <param name="baseUrl">Base url</param>
-		/// <param name="xmlBaseUrl">Xml base url</param>
-		/// <param name="cardPresentUrl">Card present url</param>
-		/// <returns>The custom environment</returns>
-		public static Environment createEnvironment(string baseUrl, string xmlBaseUrl, string cardPresentUrl)
-		{
-			var environment = CUSTOM;
-			environment.BaseUrl = baseUrl;
-			environment.XmlBaseUrl = xmlBaseUrl;
-			environment.CardPresentUrl = cardPresentUrl;
-
-			return environment;
-		}
+	/// <summary>
+	/// Create a custom environment with the specified base url
+	/// </summary>
+	/// <param name="baseUrl">Base url</param>
+	/// <param name="xmlBaseUrl">Xml base url</param>
+	/// <param name="cardPresentUrl">Card present url</param>
+	/// <returns>The custom environment</returns>
+	public static Environment createEnvironment(string baseUrl, string xmlBaseUrl, string cardPresentUrl)
+	{
+		return new Environment(baseUrl, xmlBaseUrl, cardPresentUrl);
+	}
 
 		/// <summary>
 		/// Reads an integer value from the environment
