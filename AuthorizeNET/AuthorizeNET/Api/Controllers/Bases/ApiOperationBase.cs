@@ -11,10 +11,64 @@ namespace AuthorizeNet.Api.Controllers.Bases
             where TQ : ANetApiRequest
             where TS : ANetApiResponse
     {
-        protected static ILogger Logger = LogFactory.getLog(typeof(ApiOperationBase<TQ, TS>));
+    protected static ILogger Logger = LogFactory.getLog(typeof(ApiOperationBase<TQ, TS>));
 
-        public static AuthorizeNet.Environment RunEnvironment { get; set; }
-        public static merchantAuthenticationType MerchantAuthentication { get; set; }
+    /// <summary>
+    /// WARNING: This static property is NOT THREAD-SAFE and should NOT be used in 
+    /// multi-tenant or concurrent scenarios.
+    /// 
+    /// In ASP.NET applications serving multiple merchants concurrently, one merchant's 
+    /// environment setting can be overwritten by another merchant's request, causing 
+    /// transactions to be sent to the wrong endpoint.
+    /// 
+    /// RECOMMENDED: Pass environment parameter to Execute() method instead.
+    /// </summary>
+    /// <example>
+    /// UNSAFE (multi-tenant):
+    /// <code>
+    /// ApiOperationBase.RunEnvironment = Environment.PRODUCTION;  // DON'T DO THIS
+    /// controller.Execute();
+    /// </code>
+    /// 
+    /// SAFE (per-request):
+    /// <code>
+    /// controller.Execute(Environment.PRODUCTION);  // DO THIS INSTEAD
+    /// </code>
+    /// </example>
+    [Obsolete("Static RunEnvironment is not thread-safe in multi-tenant applications. " +
+              "Pass environment parameter to Execute() method instead.", false)]
+    public static AuthorizeNet.Environment RunEnvironment { get; set; }
+
+    /// <summary>
+    /// WARNING: This static property is NOT THREAD-SAFE and should NOT be used in 
+    /// multi-tenant or concurrent scenarios.
+    /// 
+    /// In ASP.NET applications serving multiple merchants concurrently, one merchant's 
+    /// credentials can be used for another merchant's transaction, leading to 
+    /// unauthorized charges or credential disclosure.
+    /// 
+    /// RECOMMENDED: Set merchantAuthentication on the request object instead.
+    /// </summary>
+    /// <example>
+    /// UNSAFE (multi-tenant):
+    /// <code>
+    /// ApiOperationBase.MerchantAuthentication = merchantAuth;  // DON'T DO THIS
+    /// var request = new createTransactionRequest();
+    /// var controller = new createTransactionController(request);
+    /// controller.Execute();
+    /// </code>
+    /// 
+    /// SAFE (per-request):
+    /// <code>
+    /// var request = new createTransactionRequest();
+    /// request.merchantAuthentication = merchantAuth;  // DO THIS INSTEAD
+    /// var controller = new createTransactionController(request);
+    /// controller.Execute();
+    /// </code>
+    /// </example>
+    [Obsolete("Static MerchantAuthentication is not thread-safe in multi-tenant applications. " +
+              "Set merchantAuthentication on the request object instead.", false)]
+    public static merchantAuthenticationType MerchantAuthentication { get; set; }
 
         private TQ _apiRequest;
         private TS _apiResponse;
