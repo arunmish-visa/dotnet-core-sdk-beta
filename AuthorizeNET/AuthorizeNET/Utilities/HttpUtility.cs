@@ -28,12 +28,11 @@
 		{
 			ANetApiResponse response = null;
 			if (null == request)
-			{
-				throw new ArgumentNullException("request");
-			}
-			Logger.LogDebug("MerchantInfo->LoginId/TransactionKey: '{0}':'{1}'->{2}", request.merchantAuthentication.name, request.merchantAuthentication.ItemElementName, request.merchantAuthentication.Item);
+		{
+			throw new ArgumentNullException("request");
+		}
 
-			var postUrl = GetPostUrl(env);
+		var postUrl = GetPostUrl(env);
 			
 			string responseAsString = null;
 			using (var clientHandler = new HttpClientHandler())
