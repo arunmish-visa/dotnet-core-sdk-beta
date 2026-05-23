@@ -19,18 +19,60 @@
 		public static readonly Environment HOSTED_VM = new Environment(null, null, null);
 		public static Environment CUSTOM = new Environment(null, null, null);
 		
-		public bool HttpUseProxy { get; set; }
-		public string HttpsProxyUsername { get; set; }
-		public string HttpsProxyPassword { get; set; }
-		public string HttpProxyHost { get; set; }
-		public int HttpProxyPort { get; set; }
+		/// <summary>
+		/// Gets whether to use HTTP proxy. Immutable - set via constructor for thread safety.
+		/// </summary>
+		public bool HttpUseProxy { get; }
+		
+		/// <summary>
+		/// Gets the HTTPS proxy username. Immutable - set via constructor for thread safety.
+		/// </summary>
+		public string HttpsProxyUsername { get; }
+		
+		/// <summary>
+		/// Gets the HTTPS proxy password. Immutable - set via constructor for thread safety.
+		/// </summary>
+		public string HttpsProxyPassword { get; }
+		
+		/// <summary>
+		/// Gets the HTTP proxy host. Immutable - set via constructor for thread safety.
+		/// </summary>
+		public string HttpProxyHost { get; }
+		
+		/// <summary>
+		/// Gets the HTTP proxy port. Immutable - set via constructor for thread safety.
+		/// </summary>
+		public int HttpProxyPort { get; }
 		
 
 	public Environment(string baseUrl, string xmlBaseUrl, string cardPresentUrl)
+		: this(baseUrl, xmlBaseUrl, cardPresentUrl, false, null, 0, null, null)
+	{
+	}
+
+	/// <summary>
+	/// Creates a new Environment with the specified URLs and optional proxy settings.
+	/// </summary>
+	/// <param name="baseUrl">Base URL</param>
+	/// <param name="xmlBaseUrl">XML base URL</param>
+	/// <param name="cardPresentUrl">Card present URL</param>
+	/// <param name="httpUseProxy">Whether to use HTTP proxy</param>
+	/// <param name="proxyHost">Proxy host address</param>
+	/// <param name="proxyPort">Proxy port number</param>
+	/// <param name="proxyUsername">Proxy username for authentication</param>
+	/// <param name="proxyPassword">Proxy password for authentication</param>
+	public Environment(string baseUrl, string xmlBaseUrl, string cardPresentUrl,
+					  bool httpUseProxy = false, string proxyHost = null, int proxyPort = 0,
+					  string proxyUsername = null, string proxyPassword = null)
 	{
 		BaseUrl = baseUrl;
 		XmlBaseUrl = xmlBaseUrl;
 		CardPresentUrl = cardPresentUrl;
+		HttpUseProxy = httpUseProxy;
+		HttpProxyHost = proxyHost;
+		HttpProxyPort = proxyPort;
+		HttpsProxyUsername = proxyUsername;
+		HttpsProxyPassword = proxyPassword;
 	}
 
 		/// <summary>

@@ -145,7 +145,7 @@ namespace AuthorizeNet.Api.Controllers.Bases
         {
             BeforeExecute();
 
-            if (null == environment) { environment = ApiOperationBase<ANetApiRequest, ANetApiResponse>.RunEnvironment; }
+            if (null == environment) { environment = _runEnvironment.Value; }
             if (null == environment) throw new ArgumentException(NullEnvironmentErrorMessage);
 
             var httpApiResponse = HttpUtility.PostData<TQ, TS>(environment, GetApiRequest());
@@ -249,9 +249,9 @@ namespace AuthorizeNet.Api.Controllers.Bases
 
             if (null == request.merchantAuthentication)
             {
-                if (null != ApiOperationBase<ANetApiRequest, ANetApiResponse>.MerchantAuthentication)
+                if (null != _merchantAuthentication.Value)
                 {
-                    request.merchantAuthentication = ApiOperationBase<ANetApiRequest, ANetApiResponse>.MerchantAuthentication;
+                    request.merchantAuthentication = _merchantAuthentication.Value;
                 }
                 else
                 {
