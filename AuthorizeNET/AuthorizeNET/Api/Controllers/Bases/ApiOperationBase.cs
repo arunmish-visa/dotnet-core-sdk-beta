@@ -152,30 +152,32 @@ namespace AuthorizeNet.Api.Controllers.Bases
 
             if (null != httpApiResponse)
             {
-                Logger.LogDebug("Received Response:'{0}' for request:'{1}'", httpApiResponse, GetApiRequest());
+                // SECURITY: Log only type names, not full DTOs which may contain
+                // merchantAuthentication credentials, card numbers, or session tokens.
+                Logger.LogDebug("Received Response type:'{0}' for request type:'{1}'", httpApiResponse.GetType().Name, _requestClass.Name);
                 if (httpApiResponse.GetType() == _responseClass)
                 {
                     var response = (TS)httpApiResponse;
                     SetApiResponse(response);
-                    Logger.LogDebug("Setting response: '{0}'", response);
+                    Logger.LogDebug("Setting response type: '{0}'", _responseClass.Name);
                 }
                 else if (httpApiResponse.GetType() == typeof(ErrorResponse))
                 {
                     SetErrorResponse(httpApiResponse);
-                    Logger.LogDebug("Received ErrorResponse:'{0}'", httpApiResponse);
+                    Logger.LogDebug("Received ErrorResponse for request type:'{0}'", _requestClass.Name);
                 }
                 else
                 {
                     SetErrorResponse(httpApiResponse);
-                    Logger.LogError("Invalid response:'{0}'", httpApiResponse);
+                    Logger.LogError("Invalid response type:'{0}' for request type:'{1}'", httpApiResponse.GetType().Name, _requestClass.Name);
                 }
-                Logger.LogDebug("Response obtained: {0}", GetApiResponse());
+                Logger.LogDebug("Response obtained for request type: {0}", _requestClass.Name);
                 SetResultStatus();
 
             }
             else
             {
-                Logger.LogDebug("Got a 'null' Response for request:'{0}'\n", GetApiRequest());
+                Logger.LogDebug("Got a 'null' Response for request type:'{0}'", _requestClass.Name);
             }
             AfterExecute();
         }
