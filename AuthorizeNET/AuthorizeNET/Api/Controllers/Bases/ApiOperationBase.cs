@@ -3,6 +3,7 @@ namespace AuthorizeNet.Api.Controllers.Bases
     using System.Collections.Generic;
     using System.Globalization;
     using System;
+    using System.Threading;
     using Contracts.V1;
     using Utilities;
     using Microsoft.Extensions.Logging;
@@ -13,62 +14,65 @@ namespace AuthorizeNet.Api.Controllers.Bases
     {
     protected static ILogger Logger = LogFactory.getLog(typeof(ApiOperationBase<TQ, TS>));
 
-    /// <summary>
-    /// WARNING: This static property is NOT THREAD-SAFE and should NOT be used in 
-    /// multi-tenant or concurrent scenarios.
-    /// 
-    /// In ASP.NET applications serving multiple merchants concurrently, one merchant's 
-    /// environment setting can be overwritten by another merchant's request, causing 
-    /// transactions to be sent to the wrong endpoint.
-    /// 
-    /// RECOMMENDED: Pass environment parameter to Execute() method instead.
-    /// </summary>
-    /// <example>
-    /// UNSAFE (multi-tenant):
-    /// <code>
-    /// ApiOperationBase.RunEnvironment = Environment.PRODUCTION;  // DON'T DO THIS
-    /// controller.Execute();
-    /// </code>
-    /// 
-    /// SAFE (per-request):
-    /// <code>
-    /// controller.Execute(Environment.PRODUCTION);  // DO THIS INSTEAD
-    /// </code>
-    /// </example>
-    [Obsolete("Static RunEnvironment is not thread-safe in multi-tenant applications. " +
-              "Pass environment parameter to Execute() method instead.", false)]
-    public static AuthorizeNet.Environment RunEnvironment { get; set; }
+    // AsyncLocal backing storage for thread-safe access
+    private static AsyncLocal<AuthorizeNet.Environment> _runEnvironment = new AsyncLocal<AuthorizeNet.Environment>();
+    private static AsyncLocal<merchantAuthenticationType> _merchantAuthentication = new AsyncLocal<merchantAuthenticationType>();
 
     /// <summary>
-    /// WARNING: This static property is NOT THREAD-SAFE and should NOT be used in 
-    /// multi-tenant or concurrent scenarios.
+    /// Gets or sets the runtime environment for API requests.
+    /// This property is now thread-safe using AsyncLocal storage, preventing cross-tenant credential bleed.
     /// 
-    /// In ASP.NET applications serving multiple merchants concurrently, one merchant's 
-    /// credentials can be used for another merchant's transaction, leading to 
-    /// unauthorized charges or credential disclosure.
-    /// 
-    /// RECOMMENDED: Set merchantAuthentication on the request object instead.
+    /// RECOMMENDED: Pass environment parameter to Execute() method instead of using this static property.
     /// </summary>
     /// <example>
-    /// UNSAFE (multi-tenant):
+    /// RECOMMENDED (per-request):
     /// <code>
-    /// ApiOperationBase.MerchantAuthentication = merchantAuth;  // DON'T DO THIS
+    /// controller.Execute(Environment.PRODUCTION);  // DO THIS
+    /// </code>
+    /// 
+    /// LEGACY (now thread-safe but discouraged):
+    /// <code>
+    /// ApiOperationBase.RunEnvironment = Environment.PRODUCTION;
+    /// controller.Execute();
+    /// </code>
+    /// </example>
+    [Obsolete("Static RunEnvironment is discouraged in multi-tenant applications. " +
+              "Pass environment parameter to Execute() method instead.", true)]
+    public static AuthorizeNet.Environment RunEnvironment 
+    { 
+        get => _runEnvironment.Value;
+        set => _runEnvironment.Value = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the merchant authentication credentials for API requests.
+    /// This property is now thread-safe using AsyncLocal storage, preventing cross-tenant credential bleed.
+    /// 
+    /// RECOMMENDED: Set merchantAuthentication on the request object instead of using this static property.
+    /// </summary>
+    /// <example>
+    /// RECOMMENDED (per-request):
+    /// <code>
     /// var request = new createTransactionRequest();
+    /// request.merchantAuthentication = merchantAuth;  // DO THIS
     /// var controller = new createTransactionController(request);
     /// controller.Execute();
     /// </code>
     /// 
-    /// SAFE (per-request):
+    /// LEGACY (now thread-safe but discouraged):
     /// <code>
-    /// var request = new createTransactionRequest();
-    /// request.merchantAuthentication = merchantAuth;  // DO THIS INSTEAD
+    /// ApiOperationBase.MerchantAuthentication = merchantAuth;
     /// var controller = new createTransactionController(request);
     /// controller.Execute();
     /// </code>
     /// </example>
-    [Obsolete("Static MerchantAuthentication is not thread-safe in multi-tenant applications. " +
-              "Set merchantAuthentication on the request object instead.", false)]
-    public static merchantAuthenticationType MerchantAuthentication { get; set; }
+    [Obsolete("Static MerchantAuthentication is discouraged in multi-tenant applications. " +
+              "Set merchantAuthentication on the request object instead.", true)]
+    public static merchantAuthenticationType MerchantAuthentication 
+    { 
+        get => _merchantAuthentication.Value;
+        set => _merchantAuthentication.Value = value;
+    }
 
         private TQ _apiRequest;
         private TS _apiResponse;
