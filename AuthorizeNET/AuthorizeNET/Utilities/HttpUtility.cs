@@ -45,12 +45,13 @@
 					client.Timeout = TimeSpan.FromMilliseconds(httpConnectionTimeout != 0 ? httpConnectionTimeout : Constants.HttpConnectionDefaultTimeout);
 					var content = new StringContent(XmlUtility.Serialize(request), Encoding.UTF8, "text/xml");
 					var webResponse = client.PostAsync(postUrl, content).Result;
-					Logger.LogDebug("Retrieving Response from Url: '{0}'", postUrl);
+				Logger.LogDebug("Retrieving Response from Url: '{0}'", postUrl);
 
-					// Get the response
-					Logger.LogDebug("Received Response: '{0}'", webResponse);
-					responseAsString = webResponse.Content.ReadAsStringAsync().Result;
-					Logger.LogDebug("Response from Stream: '{0}'", responseAsString);
+				// Get the response — SECURITY: Log only HTTP status, never raw body
+				// (response may contain PAN, transactionKey, session tokens)
+				Logger.LogDebug("Received Response: StatusCode='{0}', ReasonPhrase='{1}'", webResponse.StatusCode, webResponse.ReasonPhrase);
+				responseAsString = webResponse.Content.ReadAsStringAsync().Result;
+				Logger.LogDebug("Response received, ContentLength='{0}', ContentType='{1}'", responseAsString?.Length, webResponse.Content?.Headers?.ContentType);
 
 				}
 			}

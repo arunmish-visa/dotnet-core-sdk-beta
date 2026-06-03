@@ -57,7 +57,9 @@ namespace AuthorizeNet.Utilities
                 }
                 catch (Exception e)
                 {
-                    Logger.LogError("Error:'{0}' when deserializing the into object:'{1}' from xml:'{2}'", e.Message, responseType, xml);
+                    // SECURITY: Never log raw XML — it may contain PAN, transactionKey,
+                    // session tokens, or other sensitive payment data (PCI A3.2.6, KC 7.10.9).
+                    Logger.LogError("Error:'{0}' when deserializing into object:'{1}' (xmlLength={2})", e.Message, responseType, xml?.Length);
                     throw;
                 }
             }
