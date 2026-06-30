@@ -78,39 +78,51 @@
 			return response;
 		}
 
-		public static IWebProxy SetProxyIfRequested(IWebProxy proxy, AuthorizeNet.Environment env)
+	public static IWebProxy SetProxyIfRequested(IWebProxy proxy, AuthorizeNet.Environment env)
+	{
+		var newProxy = proxy as WebProxy;
+		ICredentials credentials = null;
+
+		if (env.HttpUseProxy)
 		{
-			var newProxy = proxy as WebProxy;
-			ICredentials credentials = null;
-
-			if (env.HttpUseProxy)
+			var proxyUri = new Uri(string.Format("{0}://{1}:{2}", Constants.ProxyProtocol, env.HttpProxyHost, env.HttpProxyPort));
+			
+			// SECURITY: Validate that authenticated proxies use HTTPS to protect credentials
+			// On .NET Core 2.0, https:// proxy URIs may not establish TLS tunnels, but we
+			// enforce the scheme requirement to prevent cleartext credential transmission.
+			if (!string.IsNullOrEmpty(env.HttpsProxyUsername))
 			{
-				var proxyUri = new Uri(string.Format("{0}://{1}:{2}", Constants.ProxyProtocol, env.HttpProxyHost, env.HttpProxyPort));
-				if (!_proxySet)
+				if (!proxyUri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
 				{
-					Logger.LogInformation(string.Format("Setting up proxy to URL: '{0}'", proxyUri));
-					_proxySet = true;
+					var errorMsg = string.Format(
+						"SECURITY: Proxy authentication requires HTTPS. Proxy URL '{0}' uses '{1}'. " +
+						"Set Constants.ProxyProtocol to 'https' to encrypt proxy credentials (PCI DSS 4.2.1).",
+						proxyUri, proxyUri.Scheme);
+					Logger.LogError(errorMsg);
+					throw new InvalidOperationException(errorMsg);
 				}
+				credentials = new NetworkCredential(env.HttpsProxyUsername, env.HttpsProxyPassword);
+			}
+			
+			if (!_proxySet)
+			{
+				Logger.LogInformation(string.Format("Setting up proxy to URL: '{0}'", proxyUri));
+				_proxySet = true;
+			}
 
-				if (!string.IsNullOrEmpty(env.HttpsProxyUsername))
+			if (null == proxy || null == newProxy)
+			{
+				if (credentials == null)
 				{
-					//Set credentials
-					credentials = new NetworkCredential(env.HttpsProxyUsername, env.HttpsProxyPassword);
+					newProxy = new WebProxy(proxyUri);
 				}
-
-				if (null == proxy || null == newProxy)
+				else
 				{
-					if (credentials == null)
-					{
-						newProxy = new WebProxy(proxyUri);
-					}
-					else
-					{
-						newProxy = new WebProxy(proxyUri, true, null, credentials);
-					}
+					newProxy = new WebProxy(proxyUri, true, null, credentials);
 				}
 			}
-			return (newProxy ?? proxy);
 		}
+		return (newProxy ?? proxy);
+	}
 	}
 }
