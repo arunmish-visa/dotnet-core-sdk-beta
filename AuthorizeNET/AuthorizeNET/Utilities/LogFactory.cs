@@ -45,7 +45,13 @@
                 {
                     // Default: Warning level via Debug output (only captured when debugger is attached).
                     // Consumers should call SetLoggerFactory() to wire up their own sinks/levels.
-                    _loggerFactory = new LoggerFactory().AddDebug(LogLevel.Warning);
+                    // (Microsoft.Extensions.Logging 6.0+ uses the builder pattern; the
+                    // pre-3.0 `AddDebug(LogLevel)` extension was removed.)
+                    _loggerFactory = LoggerFactory.Create(builder =>
+                    {
+                        builder.AddDebug();
+                        builder.SetMinimumLevel(LogLevel.Warning);
+                    });
                 }
                 return _loggerFactory;
             }

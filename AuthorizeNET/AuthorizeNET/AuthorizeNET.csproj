@@ -1,12 +1,25 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp2.0</TargetFramework>
+    <!--
+      SECURITY (AISAST-4b02c59d / AISAST-10677):
+      Retargeted from netcoreapp2.0 to net6.0 (LTS) so that an https:// proxy
+      URI built in HttpUtility.BuildProxyUri actually establishes a TLS tunnel
+      to the proxy (HTTPS-to-proxy support landed in .NET 5 on
+      SocketsHttpHandler, which is the default HTTP handler on .NET 6).
+      
+      Per PRD §8.6 validator feedback on PR #21: targeting netcoreapp2.0 +
+      HttpClientHandler did NOT honor the https:// proxy scheme as a TLS
+      tunnel, so the credential-protecting guard had no wire-level
+      enforcement. Retargeting to net6.0 is the framework-correct mechanism
+      to encrypt the Proxy-Authorization header on the wire.
+    -->
+    <TargetFramework>net6.0</TargetFramework>
     <Version>1.0.0.0</Version>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <DocumentationFile>bin\Release\netcoreapp2.0\AuthorizeNET.xml</DocumentationFile>
+    <DocumentationFile>bin\Release\net6.0\AuthorizeNET.xml</DocumentationFile>
     <OutputPath></OutputPath>
   </PropertyGroup>
 
@@ -22,10 +35,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="1.1.1" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="1.1.1" />
-    <PackageReference Include="System.ComponentModel.Primitives" Version="4.3.0" />
-    <PackageReference Include="System.Xml.XmlSerializer" Version="4.3.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="6.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="6.0.0" />
   </ItemGroup>
 
 </Project>

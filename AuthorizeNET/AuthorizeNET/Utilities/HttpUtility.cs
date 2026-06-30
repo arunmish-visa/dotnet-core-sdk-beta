@@ -35,9 +35,16 @@
 		var postUrl = GetPostUrl(env);
 			
 			string responseAsString = null;
-			using (var clientHandler = new HttpClientHandler())
+			// SECURITY (AISAST-4b02c59d): Use SocketsHttpHandler (default on .NET 5+)
+			// so that an https:// proxy URI establishes a real TLS tunnel to the
+			// forward proxy. Legacy HttpClientHandler on netcoreapp2.0 did NOT honor
+			// the https proxy scheme as a TLS tunnel — retargeting to net6.0 +
+			// SocketsHttpHandler is the framework-correct mechanism to encrypt the
+			// Proxy-Authorization header on the wire (PCI DSS 4.2.1, KC 8.1.1).
+			using (var clientHandler = new SocketsHttpHandler())
 			{
 				clientHandler.Proxy = SetProxyIfRequested(clientHandler.Proxy, env);
+				clientHandler.UseProxy = (clientHandler.Proxy != null);
 				using (var client = new HttpClient(clientHandler))
 				{
 					//set the http connection timeout 
@@ -116,53 +123,76 @@
 
 		if (env.HttpUseProxy)
 		{
-			var proxyUri = BuildProxyUri(env);
-			
 			// SECURITY (PCI DSS 4.2.1 / KC 8.1.1): Authenticated proxy connections
-			// must encrypt the credential hop. We require an HTTPS proxy URI when
-			// credentials are configured. The scheme is runtime-derived from
-			// env.HttpProxyHost (consumer input), so this guard is reachable and
-			// fail-closed against misconfiguration.
+			// must encrypt the credential hop. The SDK now targets net6.0 +
+			// SocketsHttpHandler, which honors an https:// proxy URI as a real TLS
+			// tunnel to the forward proxy (HTTPS-proxy support landed in .NET 5).
 			//
-			// IMPORTANT FRAMEWORK CAVEAT: HttpClientHandler on netcoreapp2.0 does
-			// NOT establish a TLS tunnel to an HTTPS proxy (HTTPS-proxy support
-			// landed in .NET 5 + SocketsHttpHandler). On netcoreapp2.0 the
-			// runtime will fail the connection rather than send credentials in
-			// cleartext — this is the intended fail-closed behavior here.
+			// For authenticated proxies we REQUIRE the consumer to supply an
+			// explicit https:// URI in env.HttpProxyHost. We deliberately do NOT
+			// silently upgrade a bare hostname to https — silent upgrades create
+			// false-assurance risk for consumers who expected http and may not
+			// have an https-capable proxy. The error message tells the consumer
+			// exactly how to fix the configuration.
 			if (!string.IsNullOrEmpty(env.HttpsProxyUsername))
 			{
-				if (!proxyUri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+				// Reject bare-host config for authenticated proxies — require
+				// explicit scheme so the consumer's intent is unambiguous.
+				if (!Uri.TryCreate(env.HttpProxyHost, UriKind.Absolute, out var explicitUri)
+					|| (explicitUri.Scheme != Uri.UriSchemeHttp
+					    && explicitUri.Scheme != Uri.UriSchemeHttps))
 				{
-					var errorMsg = string.Format(
+					var bareHostErr = string.Format(
+						"SECURITY: Authenticated proxy requires an explicit https:// URI in " +
+						"env.HttpProxyHost (e.g. 'https://proxy.example.com'). Bare host " +
+						"'{0}' is ambiguous; refusing to attach credentials without an " +
+						"explicit scheme (PCI DSS 4.2.1).",
+						env.HttpProxyHost);
+					Logger.LogError(bareHostErr);
+					throw new InvalidOperationException(bareHostErr);
+				}
+				
+				var proxyUriAuth = BuildProxyUri(env);
+				if (!proxyUriAuth.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+				{
+					var schemeErr = string.Format(
 						"SECURITY: Proxy authentication requires HTTPS to protect the " +
 						"Proxy-Authorization header on the wire. Configured proxy '{0}://{1}' " +
 						"uses scheme '{0}'. Configure env.HttpProxyHost as a full https:// URI " +
 						"(e.g. 'https://proxy.example.com') to enable authenticated proxy use. " +
 						"Refusing to attach credentials over cleartext (PCI DSS 4.2.1).",
-						proxyUri.Scheme, proxyUri.Host);
-					Logger.LogError(errorMsg);
-					throw new InvalidOperationException(errorMsg);
+						proxyUriAuth.Scheme, proxyUriAuth.Host);
+					Logger.LogError(schemeErr);
+					throw new InvalidOperationException(schemeErr);
 				}
+				
 				credentials = new NetworkCredential(env.HttpsProxyUsername, env.HttpsProxyPassword);
+				return ConfigureWebProxy(proxy, newProxy, proxyUriAuth, credentials);
 			}
 			
-			if (!_proxySet)
-			{
-				Logger.LogInformation(string.Format("Setting up proxy to URL: '{0}'", proxyUri));
-				_proxySet = true;
-			}
+			// Unauthenticated proxy: no credentials traverse the wire, so PCI DSS
+			// 4.2.1 doesn't require HTTPS. Bare host falls back to
+			// Constants.ProxyProtocol ('https' by default) but http:// is also
+			// allowed for legacy unauthenticated networks.
+			var proxyUri = BuildProxyUri(env);
+			return ConfigureWebProxy(proxy, newProxy, proxyUri, null);
+		}
+		return (newProxy ?? proxy);
+	}
+	
+	private static IWebProxy ConfigureWebProxy(IWebProxy proxy, WebProxy newProxy, Uri proxyUri, ICredentials credentials)
+	{
+		if (!_proxySet)
+		{
+			Logger.LogInformation(string.Format("Setting up proxy to URL: '{0}'", proxyUri));
+			_proxySet = true;
+		}
 
-			if (null == proxy || null == newProxy)
-			{
-				if (credentials == null)
-				{
-					newProxy = new WebProxy(proxyUri);
-				}
-				else
-				{
-					newProxy = new WebProxy(proxyUri, true, null, credentials);
-				}
-			}
+		if (null == proxy || null == newProxy)
+		{
+			newProxy = credentials == null
+				? new WebProxy(proxyUri)
+				: new WebProxy(proxyUri, true, null, credentials);
 		}
 		return (newProxy ?? proxy);
 	}
