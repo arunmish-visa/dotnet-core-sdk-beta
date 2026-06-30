@@ -78,6 +78,37 @@
 			return response;
 		}
 
+	/// <summary>
+	/// Builds the proxy URI honoring a user-supplied scheme (if env.HttpProxyHost
+	/// already contains a scheme like 'https://proxy.example.com'); otherwise falls
+	/// back to Constants.ProxyProtocol. This makes the scheme runtime-configurable
+	/// so the HTTPS-required guard below is reachable.
+	/// </summary>
+	internal static Uri BuildProxyUri(AuthorizeNet.Environment env)
+	{
+		if (string.IsNullOrWhiteSpace(env.HttpProxyHost))
+		{
+			throw new InvalidOperationException(
+				"SECURITY: HttpUseProxy is enabled but HttpProxyHost is not configured.");
+		}
+		
+		// If consumer supplied a fully-qualified URI (with scheme), honor it.
+		// This is the supported way to opt into HTTPS-to-proxy on frameworks that
+		// support it (.NET 5+/SocketsHttpHandler) and to make the scheme observable
+		// to the runtime guard below.
+		if (Uri.TryCreate(env.HttpProxyHost, UriKind.Absolute, out var fromHost)
+			&& (fromHost.Scheme == Uri.UriSchemeHttp || fromHost.Scheme == Uri.UriSchemeHttps))
+		{
+			// If port is explicitly set on env, prefer it; otherwise use what the URI parsed.
+			var port = env.HttpProxyPort > 0 ? env.HttpProxyPort : fromHost.Port;
+			return new UriBuilder(fromHost.Scheme, fromHost.Host, port).Uri;
+		}
+		
+		// Fallback to the SDK default scheme + bare host + port.
+		return new Uri(string.Format("{0}://{1}:{2}",
+			Constants.ProxyProtocol, env.HttpProxyHost, env.HttpProxyPort));
+	}
+	
 	public static IWebProxy SetProxyIfRequested(IWebProxy proxy, AuthorizeNet.Environment env)
 	{
 		var newProxy = proxy as WebProxy;
@@ -85,19 +116,30 @@
 
 		if (env.HttpUseProxy)
 		{
-			var proxyUri = new Uri(string.Format("{0}://{1}:{2}", Constants.ProxyProtocol, env.HttpProxyHost, env.HttpProxyPort));
+			var proxyUri = BuildProxyUri(env);
 			
-			// SECURITY: Validate that authenticated proxies use HTTPS to protect credentials
-			// On .NET Core 2.0, https:// proxy URIs may not establish TLS tunnels, but we
-			// enforce the scheme requirement to prevent cleartext credential transmission.
+			// SECURITY (PCI DSS 4.2.1 / KC 8.1.1): Authenticated proxy connections
+			// must encrypt the credential hop. We require an HTTPS proxy URI when
+			// credentials are configured. The scheme is runtime-derived from
+			// env.HttpProxyHost (consumer input), so this guard is reachable and
+			// fail-closed against misconfiguration.
+			//
+			// IMPORTANT FRAMEWORK CAVEAT: HttpClientHandler on netcoreapp2.0 does
+			// NOT establish a TLS tunnel to an HTTPS proxy (HTTPS-proxy support
+			// landed in .NET 5 + SocketsHttpHandler). On netcoreapp2.0 the
+			// runtime will fail the connection rather than send credentials in
+			// cleartext — this is the intended fail-closed behavior here.
 			if (!string.IsNullOrEmpty(env.HttpsProxyUsername))
 			{
-				if (!proxyUri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
+				if (!proxyUri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
 				{
 					var errorMsg = string.Format(
-						"SECURITY: Proxy authentication requires HTTPS. Proxy URL '{0}' uses '{1}'. " +
-						"Set Constants.ProxyProtocol to 'https' to encrypt proxy credentials (PCI DSS 4.2.1).",
-						proxyUri, proxyUri.Scheme);
+						"SECURITY: Proxy authentication requires HTTPS to protect the " +
+						"Proxy-Authorization header on the wire. Configured proxy '{0}://{1}' " +
+						"uses scheme '{0}'. Configure env.HttpProxyHost as a full https:// URI " +
+						"(e.g. 'https://proxy.example.com') to enable authenticated proxy use. " +
+						"Refusing to attach credentials over cleartext (PCI DSS 4.2.1).",
+						proxyUri.Scheme, proxyUri.Host);
 					Logger.LogError(errorMsg);
 					throw new InvalidOperationException(errorMsg);
 				}
