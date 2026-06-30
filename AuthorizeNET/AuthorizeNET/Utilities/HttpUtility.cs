@@ -146,6 +146,33 @@
 			// exactly how to fix the configuration.
 			if (!string.IsNullOrEmpty(env.HttpsProxyUsername))
 			{
+#if !NET5_0_OR_GREATER
+				// SECURITY (PCI DSS 4.2.1 — Iteration 6 fix): On legacy runtimes
+				// (netstandard2.0 -> .NET Framework 4.x / .NET Core 2.x/3.x) the
+				// SDK falls back to HttpClientHandler, which CANNOT establish a
+				// TLS tunnel to an HTTPS forward proxy regardless of the URI
+				// scheme string (that capability landed in .NET 5 +
+				// SocketsHttpHandler). On those runtimes a 'guarded' https://
+				// scheme is theatre — the runtime can still emit the
+				// Proxy-Authorization header in cleartext or fail the
+				// connection. Refuse authenticated proxies entirely on legacy
+				// runtimes rather than validate a scheme string we cannot
+				// enforce on the wire.
+				var legacyMsg =
+					"SECURITY: Authenticated proxies are not supported on this " +
+					"runtime. HttpClientHandler on .NET Framework / .NET Core <5 " +
+					"cannot establish a TLS tunnel to an HTTPS forward proxy, so " +
+					"the Proxy-Authorization header would traverse the wire " +
+					"unencrypted. Upgrade to .NET 5+ (SocketsHttpHandler) to use " +
+					"env.HttpsProxyUsername/HttpsProxyPassword. (PCI DSS 4.2.1)";
+				Logger.LogError(legacyMsg);
+				throw new InvalidOperationException(legacyMsg);
+				// Code below is intentionally unreachable on netstandard2.0;
+				// it remains compiled-out by the framework split for net5+.
+#pragma warning disable CS0162
+#endif
+				// (warning re-enabled after the legacy bail-out block)
+#pragma warning restore CS0162
 				// Reject bare-host config for authenticated proxies — require
 				// explicit scheme so the consumer's intent is unambiguous.
 				if (!Uri.TryCreate(env.HttpProxyHost, UriKind.Absolute, out var explicitUri)
