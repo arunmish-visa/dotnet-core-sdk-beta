@@ -2,7 +2,7 @@
 {
     public static class Constants
     {
-        public const string ProxyProtocol = "http";
+        public const string ProxyProtocol = "https";
 
         public const string HttpsUseProxy = "https.proxyUse";
         public const string HttpsProxyHost = "https.proxyHost";
