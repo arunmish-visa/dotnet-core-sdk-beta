@@ -35,13 +35,23 @@
 		var postUrl = GetPostUrl(env);
 			
 			string responseAsString = null;
-			// SECURITY (AISAST-4b02c59d): Use SocketsHttpHandler (default on .NET 5+)
-			// so that an https:// proxy URI establishes a real TLS tunnel to the
-			// forward proxy. Legacy HttpClientHandler on netcoreapp2.0 did NOT honor
-			// the https proxy scheme as a TLS tunnel — retargeting to net6.0 +
-			// SocketsHttpHandler is the framework-correct mechanism to encrypt the
-			// Proxy-Authorization header on the wire (PCI DSS 4.2.1, KC 8.1.1).
+			// SECURITY (AISAST-4b02c59d): On net6.0+ use SocketsHttpHandler so an
+			// https:// proxy URI establishes a real TLS tunnel to the forward proxy
+			// (HTTPS-proxy support landed in .NET 5 on SocketsHttpHandler). The
+			// Proxy-Authorization header is actually encrypted on the wire by the
+			// framework (PCI DSS 4.2.1, KC 8.1.1).
+			//
+			// On legacy netstandard2.0 hosts we fall back to HttpClientHandler. The
+			// HTTPS-required guard in SetProxyIfRequested() still fires fail-closed
+			// for authenticated proxies, so credentials are never attached to a
+			// non-https proxy scheme — but consumers on those legacy hosts who
+			// require encrypted-proxy-hop semantics should upgrade to .NET 5+ where
+			// the framework provides wire-level TLS-to-proxy tunneling.
+#if NET5_0_OR_GREATER
 			using (var clientHandler = new SocketsHttpHandler())
+#else
+			using (var clientHandler = new HttpClientHandler())
+#endif
 			{
 				clientHandler.Proxy = SetProxyIfRequested(clientHandler.Proxy, env);
 				clientHandler.UseProxy = (clientHandler.Proxy != null);

@@ -277,16 +277,24 @@ namespace AuthorizeNet.Tests.Utilities
                     asAscii,
                     StringComparison.OrdinalIgnoreCase);
 
-                // CORE ASSERTION (d): the runtime either started a TLS handshake
-                // (first byte 0x16 = ContentType.Handshake) OR sent nothing at
-                // all. The one outcome we forbid is "sent cleartext HTTP CONNECT
-                // with credentials" — which is what (a)/(b)/(c) above check for.
-                if (bytes.Length > 0)
-                {
-                    // 0x16 = TLS handshake; this is what we expect on net6.0+
-                    // SocketsHttpHandler with https:// proxy.
-                    Assert.Equal(0x16, bytes[0]);
-                }
+                // CORE ASSERTION (d): the runtime MUST have sent SOMETHING and
+                // that first byte MUST be 0x16 (TLS ContentType.Handshake).
+                // We deliberately do NOT accept "sent nothing" as a pass —
+                // a pen-tester could argue silence is consistent with the
+                // runtime quietly switching to cleartext. We REQUIRE positive
+                // evidence that a TLS handshake was attempted.
+                Assert.True(bytes.Length > 0,
+                    "Runtime sent zero bytes — cannot prove TLS handshake was attempted.");
+                Assert.Equal(0x16, bytes[0]); // TLS ClientHello
+
+                // CORE ASSERTION (e): bytes 2-3 of a TLS record are the legacy
+                // protocol version (0x03 0xNN where NN >= 0x01 for TLS 1.0+).
+                // This further proves the bytes on the wire are a TLS record,
+                // not e.g. cleartext HTTP CONNECT that happens to start with 0x16.
+                Assert.True(bytes.Length >= 3, "TLS record header truncated.");
+                Assert.Equal(0x03, bytes[1]);
+                Assert.True(bytes[2] >= 0x01 && bytes[2] <= 0x04,
+                    $"Expected TLS legacy version byte 0x01..0x04, got 0x{bytes[2]:X2}");
             }
             finally
             {

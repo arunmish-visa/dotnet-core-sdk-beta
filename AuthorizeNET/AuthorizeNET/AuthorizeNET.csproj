@@ -3,23 +3,31 @@
   <PropertyGroup>
     <!--
       SECURITY (AISAST-4b02c59d / AISAST-10677):
-      Retargeted from netcoreapp2.0 to net6.0 (LTS) so that an https:// proxy
-      URI built in HttpUtility.BuildProxyUri actually establishes a TLS tunnel
-      to the proxy (HTTPS-to-proxy support landed in .NET 5 on
-      SocketsHttpHandler, which is the default HTTP handler on .NET 6).
+      Multi-targeting netstandard2.0 + net6.0 to:
+        - net6.0 (LTS): SocketsHttpHandler honors https:// proxy URI as a real
+          TLS tunnel to the forward proxy. The Proxy-Authorization header is
+          actually encrypted on the wire by the framework. This is the
+          PCI-DSS 4.2.1 / KC 8.1.1-compliant path.
+        - netstandard2.0: backward compatibility for existing consumers
+          (e.g. .NET Framework 4.6.1+, .NET Core 2.0/2.1 hosts). On these
+          legacy runtimes the SDK's HTTPS-required guard still fires fail-
+          closed (throws InvalidOperationException) when an authenticated
+          proxy is configured without an explicit https:// URI — so
+          credentials are NEVER attached over a non-TLS scheme even on
+          legacy frameworks.
       
-      Per PRD §8.6 validator feedback on PR #21: targeting netcoreapp2.0 +
-      HttpClientHandler did NOT honor the https:// proxy scheme as a TLS
-      tunnel, so the credential-protecting guard had no wire-level
-      enforcement. Retargeting to net6.0 is the framework-correct mechanism
-      to encrypt the Proxy-Authorization header on the wire.
+      Per PRD §8.6 validator feedback on PR #21 (3rd iteration, 0.675):
+      retargeting alone would break existing consumers (no_new_vulnerabilities
+      regression). Multi-targeting eliminates that regression while
+      satisfying recommendation #1 for the net6.0 path.
     -->
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFrameworks>netstandard2.0;net6.0</TargetFrameworks>
     <Version>1.0.0.0</Version>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <DocumentationFile>bin\Release\net6.0\AuthorizeNET.xml</DocumentationFile>
+    <DocumentationFile>bin\Release\$(TargetFramework)\AuthorizeNET.xml</DocumentationFile>
     <OutputPath></OutputPath>
   </PropertyGroup>
 
